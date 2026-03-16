@@ -323,29 +323,24 @@ Use batch embedding generation.
 
 ---
 
-# BONUS FEATURES
+# CORE FEATURES (Implemented)
+• Google Drive connector (Webhooks & Watch Channels)
+• Event-driven document ingestion (Celery + Redis)
+• Hybrid Search (Dense + Sparse/BM25 Vector Retrieval)
+• Multi-format parsing (PDF, Docx, CSV, OCR)
+• Modern streaming UI with citations
+• Dockerized Microservices architecture
 
-Include:
-
-Document preview
-Source highlighting
-Metadata filters
+# FUTURE ENTERPRISE ROADMAP
+• **Precision Re-ranking**: Integrate Cohere Rerank API for ultra-accurate document retrieval.
+• **Advanced Memory**: Redis-backed conversational history for context-aware project discussions.
+• **Vision-Augmented Parsing**: Multi-modal extraction for complex charts and tables in documents.
+• **Admin Monitoring**: Observability dashboard for indexing health and RAG performance metrics.
+• **ACL & Permissions**: Syncing folder-level Google Drive permissions to search results.
 
 ---
 
-# FINAL OUTPUT
+# IDEAL START PROMPT (The "Enterprise" Ask)
+"Build a production-ready, enterprise-grade Document Intelligence Hub. The system must support real-time, event-driven indexing of 50GB+ Google Drive repositories using webhooks. Implement an Advanced RAG architecture featuring Hybrid Search (Dense + Sparse vectors) and a re-ranking layer (Cohere). The UI should be a high-performance React application with streaming responses, citation grounding, and metadata-aware retrieval. Back the system with a scalable Celery worker cluster and a resilient Qdrant/Redis stack."
 
-Generate:
-
-Complete backend code
-Complete frontend code
-Docker configuration
-Google Drive webhook setup instructions
-Environment variable templates
-README with setup steps
-
-The system should run with:
-
-docker compose up
-
-After starting, employees should be able to open a browser and chat with company Google Drive documents with real-time updates via webhooks.
+---
