@@ -44,11 +44,16 @@ def process_file_task(self, file_id: str):
             folder_path = "/"
 
         # Step 4: Prepare metadata
+        # Google Drive returns 'size' as a string, convert to int
+        raw_size = file_meta.get("size")
+        file_size = int(raw_size) if raw_size and raw_size.isdigit() else 0
+        
         metadata = {
             "file_name": file_meta.get("name", "unknown"),
             "drive_file_id": file_id,
             "drive_link": file_meta.get("webViewLink", ""),
             "folder_path": folder_path,
+            "file_size": file_size,
             "created_time": file_meta.get("createdTime", ""),
             "modified_time": file_meta.get("modifiedTime", ""),
         }

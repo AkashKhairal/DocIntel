@@ -3,15 +3,16 @@
   <img src="https://img.shields.io/badge/react-18-61dafb?style=flat-square&logo=react&logoColor=white" alt="React" />
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/Qdrant-vector%20db-dc382c?style=flat-square" alt="Qdrant" />
+  <img src="https://img.shields.io/badge/Cohere-Re--ranking-white?style=flat-square&logo=cohere&logoColor=black" alt="Cohere" />
   <img src="https://img.shields.io/badge/OpenAI-GPT--4.1--mini-412991?style=flat-square&logo=openai&logoColor=white" alt="OpenAI" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
 </p>
 
-<h1 align="center">🧠 DocIntel</h1>
+<h1 align="center">🧠 DocIntel Enterprise</h1>
 
 <p align="center">
-  <strong>Enterprise Document Intelligence System</strong><br/>
-  Chat with your company documents stored in Google Drive — powered by RAG, real-time webhooks, and AI.
+  <strong>The Ultimate Enterprise Document Intelligence System</strong><br/>
+  Chat with your company documents stored in Google Drive — powered by Hybrid Search (Dense + Sparse), Cross-Encoder Re-ranking, and Real-time Webhooks.
 </p>
 
 <p align="center">
@@ -27,14 +28,14 @@
 
 ## ✨ Features
 
-- **🔍 Intelligent Q&A** — Ask natural language questions about your company documents and get grounded, cited answers
-- **📡 Real-Time Sync** — Google Drive webhooks automatically index new and updated files — no polling
-- **📎 Multi-Format Parsing** — PDF, DOCX, Excel, CSV, plain text, and scanned documents (OCR)
-- **🛡️ Anti-Hallucination** — Strict context-only responses with mandatory source citations
-- **⚡ Streaming Responses** — Real-time token streaming for a ChatGPT-like experience
-- **🔧 In-App Settings** — Configure Google credentials, API keys, and webhooks through the UI
-- **🐳 One-Command Deploy** — Full Docker Compose setup with 5 services
-- **📊 Live Dashboard** — Monitor sync status, indexed documents, and vector store health
+- **🚀 Hybrid Search (V2)** — Combines semantic vector search (BGE-Large) with keyword-based BM25 search for industry-leading accuracy.
+- **🎯 Cross-Encoder Re-ranking** — Uses Cohere's Re-rank API to sort the best context chunks before they reach the LLM.
+- **📂 Enterprise Document Hub** — Dedicated management dashboard to view, re-sync, or delete indexed documents with detailed metadata (size, status, dates).
+- **📡 Real-Time Sync** — Google Drive webhooks automatically index new and updated files — zero latency.
+- **📎 Multi-Format Parsing** — PDF, DOCX, Excel, CSV, plain text, and scanned documents (OCR).
+- **🛡️ Anti-Hallucination** — Strict context-only responses with mandatory source citations and source preview.
+- **⚡ Streaming Responses** — Real-time token streaming supporting OpenAI, Google Gemini, and Ollama.
+- **📊 Progress Analytics** — Real-time floating widget tracks background indexing and sync status.
 
 ---
 
@@ -45,21 +46,24 @@
 │              │ ──────────────▸  │              │ ──────────────────▸ │              │
 │ Google Drive │                  │   FastAPI    │                     │   Celery     │
 │              │ ◂──────────────  │   Backend    │ ◂────────────────── │   Worker     │
-└──────────────┘   Push Notify    └──────┬───────┘     Embed & Store   └──────┬───────┘
-                                         │                                     │
-                                    Query│                              Vectors │
-                                         │                                     │
-                                  ┌──────▼───────┐                     ┌───────▼──────┐
-                                  │              │ ◂──── Retrieve ──── │              │
-                                  │  LLM (GPT)   │                     │   Qdrant     │
-                                  │              │                     │  Vector DB   │
-                                  └──────┬───────┘                     └──────────────┘
+└──────────────┘   Push Notify    └──────┬───────┘     Hybrid Embed    └──────┬───────┘
+                                         │             (Dense + BM25)         │
+                                    Query│                                    │
+                                         │                             Vectors│
+                                  ┌──────▼───────┐                     ┌──────▼───────┐
+                                  │   Cohere     │ ◂── Hybrid Retrieval ──┤              │
+                                  │  Re-ranker   │                     │   Qdrant     │
+                                  └──────┬───────┘                     │  Vector DB   │
+                                         │                             └──────────────┘
+                                  ┌──────▼───────┐
+                                  │  LLM (Gen)   │
+                                  └──────┬───────┘
                                          │
                                   Stream │ Response
                                          │
                                   ┌──────▼───────┐
                                   │   React UI   │
-                                  │   (Chat)     │
+                                  │(Chat + Hub)  │
                                   └──────────────┘
 ```
 
@@ -70,13 +74,13 @@
 | Layer | Technology | Purpose |
 |:------|:-----------|:--------|
 | **Backend** | Python 3.11, FastAPI | REST API, webhook handling |
-| **RAG Framework** | LlamaIndex | Chunking, retrieval orchestration |
-| **Vector Database** | Qdrant (self-hosted) | Semantic search over embeddings |
-| **Embeddings** | BAAI/bge-large-en-v1.5 | Document & query embedding |
-| **LLM** | OpenAI GPT-4.1-mini | Answer generation with streaming |
-| **Task Queue** | Celery + Redis | Async document processing |
-| **Frontend** | React 18, Vite, TailwindCSS | Chat UI with live streaming |
-| **Doc Parsing** | PyMuPDF, python-docx, pandas, Tesseract | Multi-format text extraction |
+| **Hybrid Retrieval**| FastEmbed (BM25) | Sparse vector generation for keyword search |
+| **Re-ranking** | Cohere Re-rank v3 | Cross-encoder relevance sorting |
+| **Vector Database** | Qdrant | Hybrid (Dense + Sparse) vector storage |
+| **LLM** | OpenAI / Gemini / Ollama | Multi-provider answer generation |
+| **Task Queue** | Celery + Redis | Distributed document processing |
+| **Frontend** | React 18, TailwindCSS | High-density enterprise dashboard |
+| **Doc Parsing** | Tesseract OCR + PyMuPDF | Complex document extraction |
 
 ---
 
@@ -86,7 +90,7 @@
 
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 - A Google Cloud service account with Drive API enabled ([setup guide ↓](#google-cloud-setup))
-- An OpenAI API key (or a local [Ollama](https://ollama.ai) instance)
+- API Keys: OpenAI, Gemini, or Cohere (for re-ranking)
 
 ### 1. Clone & configure
 
@@ -113,9 +117,13 @@ This launches **5 containers**:
 | `qdrant` | `6333` | Vector database |
 | `redis` | `6379` | Message broker |
 
-### 3. Open the app
+### 3. Setup in the UI
 
-Navigate to **[http://localhost:3000](http://localhost:3000)** and click **Settings** in the sidebar to configure your credentials.
+Navigate to **[http://localhost:3000](http://localhost:3000)**:
+1.  Open **Settings**
+2.  Upload your Google Service Account JSON
+3.  Paste your OpenAI/Gemini/Cohere keys
+4.  Enter your webhook URL (use `ngrok http 8000` for local dev)
 
 ---
 
@@ -127,28 +135,25 @@ All credentials can be configured through the **in-app Settings page** — no ma
 
 1. Click **Settings** in the sidebar
 2. **Upload** your Google service account JSON file
-3. **Enter** your OpenAI API key
+3. **Enter** your OpenAI API key or Gemini API key
 4. **Set** the webhook endpoint URL ([see ngrok setup ↓](#webhook-setup-for-local-development))
 5. **Set** the Drive folder ID to monitor
 6. Click **Setup Watch Channel** to activate real-time sync
 7. Click **Full Sync Now** to index existing documents
 
-### Environment Variables
+### Environment Variables (.env)
 
-Alternatively, configure via `.env`:
+| Variable | Required | Description |
+|:---------|:---------|:------------|
+| `OPENAI_API_KEY` | Optional* | API key for OpenAI models |
+| `GEMINI_API_KEY` | Optional* | API key for Google Gemini models |
+| `COHERE_API_KEY` | Optional | API key for high-accuracy re-ranking |
+| `GOOGLE_CREDENTIALS_JSON` | Yes | Service account JSON content |
+| `GOOGLE_DRIVE_FOLDER_ID` | Yes | Target folder ID to watch |
+| `WEBHOOK_URL` | Yes | Public HTTPS URL for webhooks |
+| `USE_OLLAMA` | No | Set to `true` for local-only LLM |
 
-```bash
-# Required
-OPENAI_API_KEY=sk-...
-GOOGLE_CREDENTIALS_JSON='{"type":"service_account",...}'
-GOOGLE_DRIVE_FOLDER_ID=1a2b3c4d5e6f
-WEBHOOK_URL=https://your-domain.ngrok-free.app
-
-# Optional
-API_KEY=my-secret-key        # Protect /chat endpoint
-USE_OLLAMA=false             # Use local LLM instead of OpenAI
-OLLAMA_MODEL=llama3          # Ollama model name
-```
+*\*At least one LLM provider (OpenAI, Gemini, or Ollama) must be configured.*
 
 ### Google Cloud Setup
 

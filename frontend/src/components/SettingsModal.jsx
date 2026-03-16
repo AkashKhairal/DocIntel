@@ -27,6 +27,8 @@ export default function SettingsModal({ isOpen, onClose }) {
 
     // Form state
     const [openaiKey, setOpenaiKey] = useState('');
+    const [geminiKey, setGeminiKey] = useState('');
+    const [cohereKey, setCohereKey] = useState('');
     const [webhookUrl, setWebhookUrl] = useState('');
     const [folderId, setFolderId] = useState('');
 
@@ -64,6 +66,36 @@ export default function SettingsModal({ isOpen, onClose }) {
             await updateSettings({ openai_api_key: openaiKey });
             setOpenaiKey('');
             showMessage('success', 'OpenAI API key saved successfully');
+            loadSettings();
+        } catch (err) {
+            showMessage('error', err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveGeminiKey = async () => {
+        if (!geminiKey.trim()) return;
+        try {
+            setSaving(true);
+            await updateSettings({ gemini_api_key: geminiKey });
+            setGeminiKey('');
+            showMessage('success', 'Gemini API key saved successfully');
+            loadSettings();
+        } catch (err) {
+            showMessage('error', err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveCohereKey = async () => {
+        if (!cohereKey.trim()) return;
+        try {
+            setSaving(true);
+            await updateSettings({ cohere_api_key: cohereKey });
+            setCohereKey('');
+            showMessage('success', 'Cohere API key saved successfully');
             loadSettings();
         } catch (err) {
             showMessage('error', err.message);
@@ -170,8 +202,8 @@ export default function SettingsModal({ isOpen, onClose }) {
                 {message && (
                     <div
                         className={`mx-6 mt-4 px-4 py-3 rounded-xl flex items-center gap-2.5 text-sm animate-fade-in ${message.type === 'success'
-                                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-                                : 'bg-red-500/10 border border-red-500/20 text-red-400'
+                            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                            : 'bg-red-500/10 border border-red-500/20 text-red-400'
                             }`}
                     >
                         {message.type === 'success' ? (
@@ -229,8 +261,8 @@ export default function SettingsModal({ isOpen, onClose }) {
                                     value={openaiKey}
                                     onChange={(e) => setOpenaiKey(e.target.value)}
                                     placeholder={
-                                        settings?.openai_api_key_set
-                                            ? `Current: ${settings.openai_api_key_preview}`
+                                        settings?.has_openai_key
+                                            ? 'Current Key is Set'
                                             : 'sk-...'
                                     }
                                     className="flex-1 bg-surface-800 border border-surface-700/50 rounded-lg px-3 py-2 text-sm text-surface-200 placeholder-surface-500 input-focus outline-none"
@@ -239,6 +271,64 @@ export default function SettingsModal({ isOpen, onClose }) {
                                 <button
                                     onClick={handleSaveApiKey}
                                     disabled={saving || !openaiKey.trim()}
+                                    className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-surface-700 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </SettingsSection>
+
+                        {/* Gemini API Key */}
+                        <SettingsSection
+                            icon={<Key size={16} />}
+                            title="Google Gemini API Key"
+                            description="Alternative to OpenAI (uses gemini-2.5-flash)"
+                        >
+                            <div className="flex gap-2">
+                                <input
+                                    type="password"
+                                    value={geminiKey}
+                                    onChange={(e) => setGeminiKey(e.target.value)}
+                                    placeholder={
+                                        settings?.has_gemini_key
+                                            ? 'Current Key is Set'
+                                            : 'AIzaSy...'
+                                    }
+                                    className="flex-1 bg-surface-800 border border-surface-700/50 rounded-lg px-3 py-2 text-sm text-surface-200 placeholder-surface-500 input-focus outline-none"
+                                    id="gemini-key-input"
+                                />
+                                <button
+                                    onClick={handleSaveGeminiKey}
+                                    disabled={saving || !geminiKey.trim()}
+                                    className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-surface-700 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </SettingsSection>
+
+                        {/* Cohere API Key */}
+                        <SettingsSection
+                            icon={<Key size={16} />}
+                            title="Cohere API Key"
+                            description="Used for High-Accuracy Cross-Encoder Re-ranking"
+                        >
+                            <div className="flex gap-2">
+                                <input
+                                    type="password"
+                                    value={cohereKey}
+                                    onChange={(e) => setCohereKey(e.target.value)}
+                                    placeholder={
+                                        settings?.has_cohere_key
+                                            ? 'Current Key is Set'
+                                            : 'Your Cohere API Key'
+                                    }
+                                    className="flex-1 bg-surface-800 border border-surface-700/50 rounded-lg px-3 py-2 text-sm text-surface-200 placeholder-surface-500 input-focus outline-none"
+                                    id="cohere-key-input"
+                                />
+                                <button
+                                    onClick={handleSaveCohereKey}
+                                    disabled={saving || !cohereKey.trim()}
                                     className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-surface-700 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors"
                                 >
                                     Save
@@ -344,8 +434,8 @@ function StatusBadge({ set, label }) {
     return (
         <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${set
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-surface-800/80 text-surface-500 border border-surface-700/30'
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : 'bg-surface-800/80 text-surface-500 border border-surface-700/30'
                 }`}
         >
             {set ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}

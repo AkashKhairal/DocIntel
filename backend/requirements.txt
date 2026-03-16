@@ -10,8 +10,10 @@ llama-index-embeddings-huggingface==0.5.2
 openai==1.59.9
 httpx==0.28.1
 
-# Vector Database
+# Vector Database & Retrieval
 qdrant-client==1.13.2
+fastembed==0.2.6
+cohere==5.1.8
 
 # Task Queue
 celery==5.4.0

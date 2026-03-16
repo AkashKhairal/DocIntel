@@ -22,6 +22,9 @@ class SettingsUpdate(BaseModel):
     use_ollama: Optional[bool] = None
     ollama_base_url: Optional[str] = None
     ollama_model: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    gemini_model: Optional[str] = None
+    cohere_api_key: Optional[str] = None
 
 
 @router.get("/settings")
@@ -30,16 +33,16 @@ async def get_current_settings():
     settings = get_settings()
 
     return {
-        "openai_api_key_set": bool(settings.openai_api_key),
-        "openai_api_key_preview": (
-            settings.openai_api_key[:8] + "..." if settings.openai_api_key else ""
-        ),
-        "google_credentials_set": bool(settings.google_credentials_json),
+        "has_openai_key": bool(settings.openai_api_key),
+        "has_gemini_key": bool(settings.gemini_api_key),
+        "has_cohere_key": bool(settings.cohere_api_key),
+        "has_google_creds": bool(settings.google_credentials_json),
+        "webhook_url": settings.webhook_url,
         "google_drive_folder_id": settings.google_drive_folder_id or "",
-        "webhook_url": settings.webhook_url or "",
         "use_ollama": settings.use_ollama,
         "ollama_base_url": settings.ollama_base_url,
         "ollama_model": settings.ollama_model,
+        "gemini_model": settings.gemini_model,
         "embedding_model": settings.embedding_model,
         "chunk_size": settings.chunk_size,
         "chunk_overlap": settings.chunk_overlap,
@@ -61,6 +64,9 @@ async def update_settings(update: SettingsUpdate):
     if update.webhook_url is not None:
         data["webhook_url"] = update.webhook_url
 
+    if update.cohere_api_key is not None:
+        data["cohere_api_key"] = update.cohere_api_key
+        
     if update.google_credentials_json is not None:
         # Validate that it's valid JSON
         try:
@@ -83,6 +89,12 @@ async def update_settings(update: SettingsUpdate):
 
     if update.ollama_model is not None:
         data["ollama_model"] = update.ollama_model
+
+    if update.gemini_api_key is not None:
+        data["gemini_api_key"] = update.gemini_api_key
+
+    if update.gemini_model is not None:
+        data["gemini_model"] = update.gemini_model
 
     if not data:
         raise HTTPException(status_code=400, detail="No settings to update")

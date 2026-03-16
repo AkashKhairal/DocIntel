@@ -12,6 +12,8 @@ services:
       - backend-data:/app/data
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=.
     depends_on:
       - qdrant
       - redis
@@ -31,6 +33,8 @@ services:
       - backend-data:/app/data
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=.
     depends_on:
       - qdrant
       - redis

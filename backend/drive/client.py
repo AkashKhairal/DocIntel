@@ -42,7 +42,7 @@ def download_file(file_id: str) -> tuple[Path, dict]:
     # Get file metadata
     file_meta = (
         service.files()
-        .get(fileId=file_id, fields="id,name,mimeType,createdTime,modifiedTime,webViewLink,parents")
+        .get(fileId=file_id, fields="id,name,mimeType,size,createdTime,modifiedTime,webViewLink,parents")
         .execute()
     )
 
@@ -107,30 +107,78 @@ def get_folder_path(service, file_meta: dict) -> str:
 
 
 def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
-    """List all files in the configured Drive folder."""
+    """List all files in the configured Drive folder recursively."""
     service = _get_drive_service()
     settings = get_settings()
     target_folder = folder_id or settings.google_drive_folder_id
 
-    query = f"'{target_folder}' in parents and trashed = false" if target_folder else "trashed = false"
-
     results = []
-    page_token = None
-    while True:
-        response = (
-            service.files()
-            .list(
+
+    if target_folder:
+        logger.info(f"Finding all sub-folders for root folder: {target_folder}")
+        folder_ids_to_process = [target_folder]
+        all_folder_ids = [target_folder]
+
+        # 1. Recursively find all nested folders
+        while folder_ids_to_process:
+            current_id = folder_ids_to_process.pop(0)
+            query = f"'{current_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            page_token = None
+            
+            while True:
+                response = service.files().list(
+                    q=query,
+                    fields="nextPageToken, files(id)",
+                    pageSize=1000,
+                    pageToken=page_token
+                ).execute()
+                
+                new_folders = [f["id"] for f in response.get("files", [])]
+                folder_ids_to_process.extend(new_folders)
+                all_folder_ids.extend(new_folders)
+                
+                page_token = response.get("nextPageToken")
+                if not page_token:
+                    break
+
+        logger.info(f"Found {len(all_folder_ids)} total folders to scan.")
+
+        # 2. Find all non-folder files inside all those folders
+        for f_id in all_folder_ids:
+            query = f"'{f_id}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false"
+            page_token = None
+            
+            while True:
+                response = service.files().list(
+                    q=query,
+                    fields="nextPageToken, files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,parents)",
+                    pageSize=100,
+                    pageToken=page_token
+                ).execute()
+                
+                results.extend(response.get("files", []))
+                
+                page_token = response.get("nextPageToken")
+                if not page_token:
+                    break
+    
+    else:
+        # If no target folder, get everything that is not a folder
+        query = "trashed = false and mimeType != 'application/vnd.google-apps.folder'"
+        page_token = None
+        while True:
+            response = service.files().list(
                 q=query,
-                fields="nextPageToken, files(id,name,mimeType,createdTime,modifiedTime,webViewLink,parents)",
+                fields="nextPageToken, files(id,name,mimeType,size,createdTime,modifiedTime,webViewLink,parents)",
                 pageSize=100,
-                pageToken=page_token,
-            )
-            .execute()
-        )
-        results.extend(response.get("files", []))
-        page_token = response.get("nextPageToken")
-        if not page_token:
-            break
+                pageToken=page_token
+            ).execute()
+            
+            results.extend(response.get("files", []))
+            
+            page_token = response.get("nextPageToken")
+            if not page_token:
+                break
 
     return results
 
@@ -180,7 +228,7 @@ def get_changes(start_page_token: str) -> tuple[list[dict], str]:
             service.changes()
             .list(
                 pageToken=page_token,
-                fields="nextPageToken, newStartPageToken, changes(fileId,file(id,name,mimeType,trashed,createdTime,modifiedTime,webViewLink,parents),removed)",
+                fields="nextPageToken, newStartPageToken, changes(fileId,file(id,name,mimeType,size,trashed,createdTime,modifiedTime,webViewLink,parents),removed)",
                 includeRemoved=True,
             )
             .execute()

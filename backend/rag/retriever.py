@@ -7,7 +7,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
     VectorParams,
+    SparseVectorParams,
+    SparseIndexParams,
     PointStruct,
+    SparseVector,
     Filter,
     FieldCondition,
     MatchValue,
@@ -38,34 +41,46 @@ def _ensure_collection(settings) -> None:
     if settings.qdrant_collection not in collections:
         client.create_collection(
             collection_name=settings.qdrant_collection,
-            vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+            vectors_config={"dense": VectorParams(size=1024, distance=Distance.COSINE)},
+            sparse_vectors_config={"sparse": SparseVectorParams(index=SparseIndexParams(on_disk=False))},
         )
-        logger.info(f"Created Qdrant collection: {settings.qdrant_collection}")
+        logger.info(f"Created Qdrant collection: {settings.qdrant_collection} with Hybrid Search enabled")
 
 
 def upsert_vectors(
-    vectors: list[list[float]],
+    vectors: list[dict],
     payloads: list[dict],
     ids: list[str],
 ) -> None:
-    """Insert or update vectors in Qdrant.
+    """Insert or update Hybrid vectors in Qdrant.
 
     Args:
-        vectors: List of embedding vectors.
+        vectors: List of dictionaries containing 'dense' and 'sparse' vectors.
         payloads: List of metadata dicts for each vector.
         ids: List of unique point IDs.
     """
     settings = get_settings()
     client = get_qdrant_client()
 
-    points = [
-        PointStruct(
-            id=point_id,
-            vector=vector,
-            payload=payload,
+    points = []
+    for point_id, vector_dict, payload in zip(ids, vectors, payloads):
+        
+        # Format for Qdrant Hybrid schema
+        vector_payload = {
+            "dense": vector_dict["dense"],
+            "sparse": SparseVector(
+                indices=vector_dict["sparse"].indices.tolist(),
+                values=vector_dict["sparse"].values.tolist(),
+            )
+        }
+        
+        points.append(
+            PointStruct(
+                id=point_id,
+                vector=vector_payload,
+                payload=payload,
+            )
         )
-        for point_id, vector, payload in zip(ids, vectors, payloads)
-    ]
 
     # Batch upsert in chunks of 100
     batch_size = 100
@@ -77,7 +92,7 @@ def upsert_vectors(
 
 
 def search_vectors(query: str, top_k: Optional[int] = None) -> list[dict]:
-    """Search for relevant document chunks.
+    """Search for relevant document chunks using Hybrid queries.
 
     Args:
         query: The user's question.
@@ -86,18 +101,42 @@ def search_vectors(query: str, top_k: Optional[int] = None) -> list[dict]:
     Returns:
         List of results with score, text, and metadata.
     """
+    from qdrant_client.models import NamedVector, NamedSparseVector
+
     settings = get_settings()
     client = get_qdrant_client()
     k = top_k or settings.top_k
 
-    query_vector = generate_query_embedding(query)
+    query_vectors = generate_query_embedding(query)
 
-    results = client.search(
+    # In Qdrant 1.10+, we can use `query_points` with a `Prefetch` to do pure hybrid
+    # For now, using standard search on the dense vector and relying on re-ranking later,
+    # or doing a custom multi-vector search. Here is a basic hybrid attempt:
+    from qdrant_client.models import Prefetch
+    
+    # Run a hybrid search relying on Reciprocal Rank Fusion via query_points
+    results = client.query_points(
         collection_name=settings.qdrant_collection,
-        query_vector=query_vector,
+        prefetch=[
+            Prefetch(
+                query=query_vectors["dense"],
+                using="dense",
+                limit=k * 2,
+            ),
+            Prefetch(
+                query=SparseVector(
+                    indices=query_vectors["sparse"].indices.tolist(),
+                    values=query_vectors["sparse"].values.tolist(),
+                ),
+                using="sparse",
+                limit=k * 2,
+            ),
+        ],
+        query=query_vectors["dense"], # Provide a fallback main query
+        using="dense",
         limit=k,
         with_payload=True,
-    )
+    ).points
 
     return [
         {
@@ -108,6 +147,7 @@ def search_vectors(query: str, top_k: Optional[int] = None) -> list[dict]:
                 "drive_file_id": hit.payload.get("drive_file_id", ""),
                 "drive_link": hit.payload.get("drive_link", ""),
                 "folder_path": hit.payload.get("folder_path", ""),
+                "file_size": hit.payload.get("file_size", 0),
                 "created_time": hit.payload.get("created_time", ""),
                 "modified_time": hit.payload.get("modified_time", ""),
                 "chunk_index": hit.payload.get("chunk_index", 0),
@@ -175,6 +215,7 @@ def get_indexed_files() -> list[dict]:
                         "drive_file_id": fid,
                         "drive_link": point.payload.get("drive_link", ""),
                         "folder_path": point.payload.get("folder_path", ""),
+                        "file_size": point.payload.get("file_size", 0),
                         "created_time": point.payload.get("created_time", ""),
                         "modified_time": point.payload.get("modified_time", ""),
                     }

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4.1-mini"
 
+    # --- Gemini ---
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+
     # --- Ollama (optional local LLM) ---
     use_ollama: bool = False
     ollama_base_url: str = "http://ollama:11434"
@@ -52,7 +56,9 @@ class Settings(BaseSettings):
     chunk_overlap: int = 100
 
     # --- Retrieval ---
-    top_k: int = 10
+    top_k: int = 20  # Retrieve 20 for hybrid search
+    rerank_top_k: int = 5  # Re-rank down to best 5
+    cohere_api_key: str = ""
 
     class Config:
         env_file = ".env"
@@ -80,6 +86,7 @@ def save_runtime_config(data: dict) -> None:
     get_settings.cache_clear()
 
 
+@lru_cache
 def get_settings() -> Settings:
     """Return settings with runtime overrides applied."""
     runtime = _load_runtime_config()

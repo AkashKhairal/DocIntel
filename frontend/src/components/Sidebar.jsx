@@ -10,7 +10,10 @@ import {
     CheckCircle2,
     AlertCircle,
     Zap,
+    MessageSquare,
+    Library
 } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 
 export default function Sidebar({ onOpenSettings }) {
     const [syncStatus, setSyncStatus] = useState(null);
@@ -59,6 +62,34 @@ export default function Sidebar({ onOpenSettings }) {
                         </p>
                     </div>
                 </div>
+            </div>
+
+            {/* Main Navigation */}
+            <div className="px-3 py-4 space-y-1 border-b border-surface-800/50">
+                <NavLink
+                    to="/chat"
+                    className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${isActive
+                            ? 'bg-accent-500/10 text-accent-400'
+                            : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/60'
+                        }`
+                    }
+                >
+                    <MessageSquare size={16} />
+                    <span className="text-sm">Chat</span>
+                </NavLink>
+                <NavLink
+                    to="/documents"
+                    className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${isActive
+                            ? 'bg-accent-500/10 text-accent-400'
+                            : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/60'
+                        }`
+                    }
+                >
+                    <Library size={16} />
+                    <span className="text-sm">Document Hub</span>
+                </NavLink>
             </div>
 
             {/* Sync Status */}
@@ -116,11 +147,9 @@ export default function Sidebar({ onOpenSettings }) {
                 ) : (
                     <div className="space-y-1">
                         {documents.slice(0, 20).map((doc, idx) => (
-                            <a
+                            <NavLink
                                 key={idx}
-                                href={doc.drive_link || '#'}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                to="/documents"
                                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface-800/60 transition-all duration-150 group"
                             >
                                 <FileText
@@ -138,7 +167,7 @@ export default function Sidebar({ onOpenSettings }) {
                                         </p>
                                     )}
                                 </div>
-                            </a>
+                            </NavLink>
                         ))}
                     </div>
                 )}
