@@ -30,7 +30,9 @@
 
 - **🚀 Hybrid Search (V2)** — Combines semantic vector search (BGE-Large) with keyword-based BM25 search for industry-leading accuracy.
 - **🎯 Cross-Encoder Re-ranking** — Uses Cohere's Re-rank API to sort the best context chunks before they reach the LLM.
-- **📂 Enterprise Document Hub** — Dedicated management dashboard to view, re-sync, or delete indexed documents with detailed metadata (size, status, dates).
+- **🏢 Multi-Tenant SaaS Architecture** — Complete organization, tenant, and user management with secure data isolation.
+- **🌍 Superadmin Dashboard** — Dedicated `master-frontend` for platform administrators to manage tenants, API keys, and usage analytics.
+- **📂 Enterprise Document Hub** — Dedicated management dashboard to view, re-sync, or delete indexed documents.
 - **📡 Real-Time Sync** — Google Drive webhooks automatically index new and updated files — zero latency.
 - **📎 Multi-Format Parsing** — PDF, DOCX, Excel, CSV, plain text, and scanned documents (OCR).
 - **🛡️ Anti-Hallucination** — Strict context-only responses with mandatory source citations and source preview.
@@ -48,21 +50,21 @@
 │              │ ◂──────────────  │   Backend    │ ◂────────────────── │   Worker     │
 └──────────────┘   Push Notify    └──────┬───────┘     Hybrid Embed    └──────┬───────┘
                                          │             (Dense + BM25)         │
-                                    Query│                                    │
-                                         │                             Vectors│
-                                  ┌──────▼───────┐                     ┌──────▼───────┐
-                                  │   Cohere     │ ◂── Hybrid Retrieval ──┤              │
-                                  │  Re-ranker   │                     │   Qdrant     │
-                                  └──────┬───────┘                     │  Vector DB   │
+            ┌────────────────────────────┤                                    │
+            │                      Query │                             Vectors│
+     ┌──────▼───────┐             ┌──────▼───────┐                     ┌──────▼───────┐
+     │  PostgreSQL  │             │   Cohere     │ ◂── Hybrid Retrieval ──┤              │
+     │ (Tenants/DB) │             │  Re-ranker   │                     │   Qdrant     │
+     └──────────────┘             └──────┬───────┘                     │  Vector DB   │
                                          │                             └──────────────┘
                                   ┌──────▼───────┐
                                   │  LLM (Gen)   │
                                   └──────┬───────┘
                                          │
-                                  Stream │ Response
-                                         │
-                                  ┌──────▼───────┐
-                                  │   React UI   │
+┌────────────────┐                Stream │ Response
+│ Superadmin UI  │ ◂──(Admin Api)────────┤
+│master-frontend │                ┌──────▼───────┐
+└────────────────┘                │   React UI   │
                                   │(Chat + Hub)  │
                                   └──────────────┘
 ```
@@ -73,13 +75,14 @@
 
 | Layer | Technology | Purpose |
 |:------|:-----------|:--------|
-| **Backend** | Python 3.11, FastAPI | REST API, webhook handling |
+| **Backend** | Python 3.11, FastAPI | REST API, webhook handling, Multi-tenant logic |
+| **Relational DB**| PostgreSQL + Alembic | Organizations, Tenants, Users, Usage Logs, and Auth DB |
 | **Hybrid Retrieval**| FastEmbed (BM25) | Sparse vector generation for keyword search |
 | **Re-ranking** | Cohere Re-rank v3 | Cross-encoder relevance sorting |
-| **Vector Database** | Qdrant | Hybrid (Dense + Sparse) vector storage |
+| **Vector Database** | Qdrant | Hybrid (Dense + Sparse) vector storage (Tenant-isolated) |
 | **LLM** | OpenAI / Gemini / Ollama | Multi-provider answer generation |
 | **Task Queue** | Celery + Redis | Distributed document processing |
-| **Frontend** | React 18, TailwindCSS | High-density enterprise dashboard |
+| **Frontend** | React 18, TailwindCSS, Vite | High-density enterprise dashboard and Admin panel |
 | **Doc Parsing** | Tesseract OCR + PyMuPDF | Complex document extraction |
 
 ---
@@ -89,6 +92,7 @@
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
+- PostgreSQL (or via Docker)
 - A Google Cloud service account with Drive API enabled ([setup guide ↓](#google-cloud-setup))
 - API Keys: OpenAI, Gemini, or Cohere (for re-ranking)
 
@@ -107,23 +111,29 @@ cp .env.example .env
 docker compose up --build
 ```
 
-This launches **5 containers**:
+This launches **6 containers**:
 
 | Service | Port | Description |
 |:--------|:-----|:------------|
-| `backend` | `8000` | FastAPI server + Swagger docs |
+| `backend` | `8000` | FastAPI server + Swagger docs + Alembic Migrations |
 | `worker` | — | Celery background processor |
-| `frontend` | `3000` | React chat interface |
+| `frontend` | `3000` | React chat interface (End-user facing) |
+| `master-frontend`| `3100` | React Superadmin panel for tenant management |
 | `qdrant` | `6333` | Vector database |
 | `redis` | `6379` | Message broker |
 
+*(Note: Ensure your PostgreSQL database matches the connection string in your `.env` to run Alembic migrations automatically or manually via `alembic upgrade head`)*
+
 ### 3. Setup in the UI
 
-Navigate to **[http://localhost:3000](http://localhost:3000)**:
+Navigate to **[http://localhost:3000](http://localhost:3000)** (End user):
 1.  Open **Settings**
 2.  Upload your Google Service Account JSON
 3.  Paste your OpenAI/Gemini/Cohere keys
 4.  Enter your webhook URL (use `ngrok http 8000` for local dev)
+
+Navigate to **[http://localhost:3100](http://localhost:3100)** (Admin):
+- Manage System Tenants, Organizations, Users, and monitor LLM token Usage Logs.
 
 ---
 
@@ -146,6 +156,7 @@ All credentials can be configured through the **in-app Settings page** — no ma
 
 | Variable | Required | Description |
 |:---------|:---------|:------------|
+| `DATABASE_URL` | Yes | Postgres DB connection string (e.g. `postgresql://user:pass@localhost/db`) |
 | `OPENAI_API_KEY` | Optional* | API key for OpenAI models |
 | `GEMINI_API_KEY` | Optional* | API key for Google Gemini models |
 | `COHERE_API_KEY` | Optional | API key for high-accuracy re-ranking |
@@ -211,6 +222,14 @@ GET /documents          # List all indexed documents
 GET /sync-status        # Indexing statistics
 ```
 
+### Multi-Tenant Admin API
+
+```
+GET /admin/tenants            # Manage isolated tenants
+GET /admin/organizations      # Manage orgs within the system
+GET /admin/users              # Manage users and RBAC
+```
+
 ### Webhook
 
 ```
@@ -236,16 +255,18 @@ Full interactive docs available at **[http://localhost:8000/docs](http://localho
 ```
 docintel/
 ├── backend/
-│   ├── api/                   # Route handlers
+│   ├── alembic/               # PostgreSQL DB migrations
+│   ├── app/                   # New SaaS Application Logic
+│   │   ├── api/               # Multi-tenant API routes (users, orgranizations, admin)
+│   │   ├── auth/              # JWT Authenication
+│   │   ├── core/              # Global config handlers
+│   │   ├── db/                # PostgreSQL Session management
+│   │   └── models/            # SQLAlchemy Database models (Tenant, User, etc)
+│   ├── api/                   # Legacy/Chat Route handlers
 │   │   ├── chat.py            # POST /chat — streaming Q&A
 │   │   ├── documents.py       # GET /documents, /sync-status
 │   │   └── settings.py        # Runtime settings management
-│   ├── config/
-│   │   └── settings.py        # Pydantic settings + runtime config
-│   ├── drive/
-│   │   ├── client.py          # Google Drive API v3 client
-│   │   └── webhook.py         # Push notification handler
-│   ├── rag/
+│   ├── rag/                   # RAG Engine
 │   │   ├── retriever.py       # Qdrant vector operations
 │   │   └── chat.py            # RAG pipeline + anti-hallucination
 │   ├── services/
@@ -257,23 +278,21 @@ docintel/
 │   │   └── tasks.py           # Background ingestion tasks
 │   ├── main.py                # FastAPI application
 │   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
+│   └── alembic.ini
+├── frontend/                  # End-User Chat/Dashboard
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ChatArea.jsx       # Chat with streaming & suggestions
-│   │   │   ├── Sidebar.jsx        # Status, documents, settings
-│   │   │   ├── SettingsModal.jsx   # Credential management UI
-│   │   │   ├── MessageBubble.jsx   # Message with markdown
-│   │   │   └── SourceCard.jsx      # Clickable source citation
 │   │   ├── services/
-│   │   │   └── api.js             # Backend API client
 │   │   ├── App.jsx
-│   │   ├── main.jsx
-│   │   └── index.css
+│   │   └── main.jsx
 │   ├── nginx.conf
-│   ├── Dockerfile
-│   └── package.json
+│   └── Dockerfile
+├── master-frontend/           # Superadmin panel
+│   ├── src/
+│   │   ├── pages/             # Tenant/User/Organization management pages
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   └── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
