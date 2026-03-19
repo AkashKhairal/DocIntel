@@ -19,15 +19,17 @@ class Settings(BaseSettings):
 
     # --- App ---
     app_name: str = "DocIntel"
-    api_key: str = Field(default="", description="API key for authenticating chat requests")
+    api_key: str = Field(
+        default="", description="API key for authenticating chat requests")
     debug: bool = False
 
     # --- OpenAI ---
+    # OpenAI is deprecated for manual key entry on this deployment.
     openai_api_key: str = ""
     openai_model: str = "gpt-4.1-mini"
 
     # --- Gemini ---
-    gemini_api_key: str = ""
+    gemini_api_key: str = Field("", env="GEMINI_API_KEY")
     gemini_model: str = "gemini-2.5-flash"
 
     # --- Ollama (optional local LLM) ---
@@ -36,7 +38,9 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3"
 
     # --- Embedding ---
-    embedding_model: str = "BAAI/bge-large-en-v1.5"
+    # Use an OpenAI embedding model by default to avoid large local ML dependencies.
+    # You can still use a HuggingFace model by setting this to a HF model path (e.g. "BAAI/bge-large-en-v1.5")
+    embedding_model: str = "text-embedding-3-large"
 
     # --- Qdrant ---
     qdrant_host: str = "qdrant"
@@ -47,9 +51,12 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
 
     # --- Google Drive ---
-    google_credentials_json: str = ""  # raw JSON string of service account creds
+    # raw JSON string of service account creds (legacy)
+    google_credentials_json: str = ""
     google_drive_folder_id: str = ""  # root folder to watch
     webhook_url: str = ""  # public HTTPS URL for Drive push notifications
+    # e.g. https://app.example.com/integrations/google/callback
+    google_oauth_redirect_uri: str = ""
 
     # --- Chunking ---
     chunk_size: int = 500
@@ -61,7 +68,7 @@ class Settings(BaseSettings):
     cohere_api_key: str = ""
 
     class Config:
-        env_file = ".env"
+        env_file = str(Path(__file__).resolve().parents[2] / ".env")
         env_file_encoding = "utf-8"
         extra = "ignore"
 

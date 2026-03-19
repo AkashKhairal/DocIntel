@@ -1,0 +1,151 @@
+:root {
+    --bg: #0a0f1b;
+    --text: #e8f0ff;
+    --muted: #99a9c7;
+    --surface: #101a2f;
+    --card: #17243f;
+    --accent: #4f63ff;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.app {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 250px;
+    border-right: 1px solid #223452;
+    padding: 20px;
+    background: var(--surface);
+}
+
+.sidebar h1 {
+    font-size: 18px;
+    margin-bottom: 18px;
+}
+
+.nav-item {
+    display: block;
+    margin-bottom: 8px;
+    text-decoration: none;
+    color: var(--muted);
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.nav-item.active,
+.nav-item:hover {
+    color: #fff;
+    background: rgba(79, 99, 255, 0.2);
+}
+
+.content {
+    flex: 1;
+    padding: 24px;
+}
+
+h2 {
+    margin-top: 0;
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid #223452;
+    padding: 14px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.error {
+    color: #ff7b7b;
+}
+
+.tenant-form input {
+    margin-right: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+    border: 1px solid #3a4b6f;
+    border-radius: 6px;
+    background: #0f1a31;
+    color: #e8f0ff;
+}
+
+.tenant-form button {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 10px;
+    border: 1px solid #223456;
+}
+
+.login-container {
+    max-width: 400px;
+    margin: 80px auto;
+    padding: 24px;
+    background: var(--card);
+    border: 1px solid #223456;
+    border-radius: 10px;
+}
+
+.login-form input {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #3a4b6f;
+    border-radius: 6px;
+    background: #0f1a31;
+    color: #e8f0ff;
+}
+
+.login-form button {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+}
+
+.logout-button {
+    margin-top: 10px;
+    padding: 8px 10px;
+    color: #fff;
+    background: #ff5b5b;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: calc(100% - 2px);
+}

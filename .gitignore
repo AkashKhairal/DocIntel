@@ -25,3 +25,9 @@ backend/data/
 
 # Build
 frontend/dist/
+
+# Vibe
+vibe/
+
+# Secrets
+secrets/

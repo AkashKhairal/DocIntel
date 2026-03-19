@@ -22,7 +22,8 @@ def _get_drive_service():
     """Build and return a Google Drive API service instance."""
     settings = get_settings()
     if not settings.google_credentials_json:
-        raise ValueError("Google credentials not configured. Please set them via Settings.")
+        raise ValueError(
+            "Google credentials not configured. Please set them via Settings.")
 
     creds_dict = json.loads(settings.google_credentials_json)
     credentials = service_account.Credentials.from_service_account_info(
@@ -31,13 +32,16 @@ def _get_drive_service():
     return build("drive", "v3", credentials=credentials)
 
 
-def download_file(file_id: str) -> tuple[Path, dict]:
+def download_file(file_id: str, service=None) -> tuple[Path, dict]:
     """Download a file from Google Drive to a temp location.
+
+    If a service is not provided, falls back to service account credentials.
 
     Returns:
         Tuple of (local_path, file_metadata)
     """
-    service = _get_drive_service()
+    if service is None:
+        service = _get_drive_service()
 
     # Get file metadata
     file_meta = (
@@ -106,16 +110,18 @@ def get_folder_path(service, file_meta: dict) -> str:
     return "/" + "/".join(path_parts) if path_parts else "/"
 
 
-def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
+def list_all_files(folder_id: Optional[str] = None, service=None) -> list[dict]:
     """List all files in the configured Drive folder recursively."""
-    service = _get_drive_service()
+    if service is None:
+        service = _get_drive_service()
     settings = get_settings()
     target_folder = folder_id or settings.google_drive_folder_id
 
     results = []
 
     if target_folder:
-        logger.info(f"Finding all sub-folders for root folder: {target_folder}")
+        logger.info(
+            f"Finding all sub-folders for root folder: {target_folder}")
         folder_ids_to_process = [target_folder]
         all_folder_ids = [target_folder]
 
@@ -124,7 +130,7 @@ def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
             current_id = folder_ids_to_process.pop(0)
             query = f"'{current_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
             page_token = None
-            
+
             while True:
                 response = service.files().list(
                     q=query,
@@ -132,11 +138,11 @@ def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
                     pageSize=1000,
                     pageToken=page_token
                 ).execute()
-                
+
                 new_folders = [f["id"] for f in response.get("files", [])]
                 folder_ids_to_process.extend(new_folders)
                 all_folder_ids.extend(new_folders)
-                
+
                 page_token = response.get("nextPageToken")
                 if not page_token:
                     break
@@ -147,7 +153,7 @@ def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
         for f_id in all_folder_ids:
             query = f"'{f_id}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false"
             page_token = None
-            
+
             while True:
                 response = service.files().list(
                     q=query,
@@ -155,13 +161,13 @@ def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
                     pageSize=100,
                     pageToken=page_token
                 ).execute()
-                
+
                 results.extend(response.get("files", []))
-                
+
                 page_token = response.get("nextPageToken")
                 if not page_token:
                     break
-    
+
     else:
         # If no target folder, get everything that is not a folder
         query = "trashed = false and mimeType != 'application/vnd.google-apps.folder'"
@@ -173,9 +179,9 @@ def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
                 pageSize=100,
                 pageToken=page_token
             ).execute()
-            
+
             results.extend(response.get("files", []))
-            
+
             page_token = response.get("nextPageToken")
             if not page_token:
                 break
@@ -183,13 +189,15 @@ def list_all_files(folder_id: Optional[str] = None) -> list[dict]:
     return results
 
 
-def setup_watch_channel() -> dict:
+def setup_watch_channel(service=None) -> dict:
     """Create a Drive push notification watch channel."""
-    service = _get_drive_service()
+    if service is None:
+        service = _get_drive_service()
     settings = get_settings()
 
     if not settings.webhook_url:
-        raise ValueError("Webhook URL not configured. Please set it via Settings.")
+        raise ValueError(
+            "Webhook URL not configured. Please set it via Settings.")
 
     # Get the start page token
     response = service.changes().getStartPageToken().execute()
@@ -203,7 +211,8 @@ def setup_watch_channel() -> dict:
     }
 
     result = service.changes().watch(pageToken=start_page_token, body=body).execute()
-    logger.info(f"Watch channel created: {channel_id}, expiration: {result.get('expiration')}")
+    logger.info(
+        f"Watch channel created: {channel_id}, expiration: {result.get('expiration')}")
 
     return {
         "channel_id": channel_id,
@@ -213,13 +222,14 @@ def setup_watch_channel() -> dict:
     }
 
 
-def get_changes(start_page_token: str) -> tuple[list[dict], str]:
+def get_changes(start_page_token: str, service=None) -> tuple[list[dict], str]:
     """Fetch changes since the given page token.
 
     Returns:
         Tuple of (list of changes, new page token)
     """
-    service = _get_drive_service()
+    if service is None:
+        service = _get_drive_service()
 
     changes = []
     page_token = start_page_token

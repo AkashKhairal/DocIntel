@@ -29,7 +29,8 @@ def get_qdrant_client() -> QdrantClient:
     global _qdrant_client
     if _qdrant_client is None:
         settings = get_settings()
-        _qdrant_client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+        _qdrant_client = QdrantClient(
+            host=settings.qdrant_host, port=settings.qdrant_port)
         _ensure_collection(settings)
     return _qdrant_client
 
@@ -41,10 +42,13 @@ def _ensure_collection(settings) -> None:
     if settings.qdrant_collection not in collections:
         client.create_collection(
             collection_name=settings.qdrant_collection,
-            vectors_config={"dense": VectorParams(size=1024, distance=Distance.COSINE)},
-            sparse_vectors_config={"sparse": SparseVectorParams(index=SparseIndexParams(on_disk=False))},
+            vectors_config={"dense": VectorParams(
+                size=1024, distance=Distance.COSINE)},
+            sparse_vectors_config={"sparse": SparseVectorParams(
+                index=SparseIndexParams(on_disk=False))},
         )
-        logger.info(f"Created Qdrant collection: {settings.qdrant_collection} with Hybrid Search enabled")
+        logger.info(
+            f"Created Qdrant collection: {settings.qdrant_collection} with Hybrid Search enabled")
 
 
 def upsert_vectors(
@@ -64,7 +68,7 @@ def upsert_vectors(
 
     points = []
     for point_id, vector_dict, payload in zip(ids, vectors, payloads):
-        
+
         # Format for Qdrant Hybrid schema
         vector_payload = {
             "dense": vector_dict["dense"],
@@ -73,7 +77,7 @@ def upsert_vectors(
                 values=vector_dict["sparse"].values.tolist(),
             )
         }
-        
+
         points.append(
             PointStruct(
                 id=point_id,
@@ -85,17 +89,18 @@ def upsert_vectors(
     # Batch upsert in chunks of 100
     batch_size = 100
     for i in range(0, len(points), batch_size):
-        batch = points[i : i + batch_size]
+        batch = points[i: i + batch_size]
         client.upsert(collection_name=settings.qdrant_collection, points=batch)
 
     logger.info(f"Upserted {len(points)} vectors to Qdrant")
 
 
-def search_vectors(query: str, top_k: Optional[int] = None) -> list[dict]:
+def search_vectors(query: str, tenant_id: Optional[int] = None, top_k: Optional[int] = None) -> list[dict]:
     """Search for relevant document chunks using Hybrid queries.
 
     Args:
         query: The user's question.
+        tenant_id: Tenant ID for isolation.
         top_k: Number of results to return.
 
     Returns:
@@ -113,11 +118,11 @@ def search_vectors(query: str, top_k: Optional[int] = None) -> list[dict]:
     # For now, using standard search on the dense vector and relying on re-ranking later,
     # or doing a custom multi-vector search. Here is a basic hybrid attempt:
     from qdrant_client.models import Prefetch
-    
+
     # Run a hybrid search relying on Reciprocal Rank Fusion via query_points
-    results = client.query_points(
-        collection_name=settings.qdrant_collection,
-        prefetch=[
+    query_kwargs = {
+        "collection_name": settings.qdrant_collection,
+        "prefetch": [
             Prefetch(
                 query=query_vectors["dense"],
                 using="dense",
@@ -132,11 +137,23 @@ def search_vectors(query: str, top_k: Optional[int] = None) -> list[dict]:
                 limit=k * 2,
             ),
         ],
-        query=query_vectors["dense"], # Provide a fallback main query
-        using="dense",
-        limit=k,
-        with_payload=True,
-    ).points
+        "query": query_vectors["dense"],  # Provide a fallback main query
+        "using": "dense",
+        "limit": k,
+        "with_payload": True,
+    }
+
+    if tenant_id is not None:
+        query_kwargs["filter"] = Filter(
+            must=[
+                FieldCondition(
+                    key="tenant_id",
+                    match=MatchValue(value=tenant_id),
+                )
+            ]
+        )
+
+    results = client.query_points(**query_kwargs).points
 
     return [
         {

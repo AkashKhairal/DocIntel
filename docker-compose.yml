@@ -14,9 +14,14 @@ services:
       - .env
     environment:
       - PYTHONPATH=.
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/docintel
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
     depends_on:
       - qdrant
       - redis
+      - postgres
     restart: unless-stopped
     networks:
       - docintel
@@ -35,9 +40,14 @@ services:
       - .env
     environment:
       - PYTHONPATH=.
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/docintel
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
     depends_on:
       - qdrant
       - redis
+      - postgres
     restart: unless-stopped
     networks:
       - docintel
@@ -50,6 +60,20 @@ services:
     container_name: docintel-frontend
     ports:
       - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - docintel
+
+  # ------- Master-admin Frontend -------
+  master-frontend:
+    build:
+      context: ./master-frontend
+      dockerfile: Dockerfile
+    container_name: docintel-master-frontend
+    ports:
+      - "3100:80"
     depends_on:
       - backend
     restart: unless-stopped
@@ -81,10 +105,28 @@ services:
     networks:
       - docintel
 
+  # ------- PostgreSQL -------
+  postgres:
+    image: postgres:15-alpine
+    container_name: docintel-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: docintel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - docintel
+
 volumes:
   backend-data:
   qdrant-data:
   redis-data:
+  postgres-data:
+
 
 networks:
   docintel:

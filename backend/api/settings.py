@@ -4,10 +4,11 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from pydantic import BaseModel
 
 from config.settings import get_settings, save_runtime_config
+from app.auth.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +16,11 @@ router = APIRouter()
 
 
 class SettingsUpdate(BaseModel):
-    openai_api_key: Optional[str] = None
     webhook_url: Optional[str] = None
-    google_credentials_json: Optional[str] = None
     google_drive_folder_id: Optional[str] = None
     use_ollama: Optional[bool] = None
     ollama_base_url: Optional[str] = None
     ollama_model: Optional[str] = None
-    gemini_api_key: Optional[str] = None
-    gemini_model: Optional[str] = None
     cohere_api_key: Optional[str] = None
 
 
@@ -33,10 +30,9 @@ async def get_current_settings():
     settings = get_settings()
 
     return {
-        "has_openai_key": bool(settings.openai_api_key),
-        "has_gemini_key": bool(settings.gemini_api_key),
         "has_cohere_key": bool(settings.cohere_api_key),
         "has_google_creds": bool(settings.google_credentials_json),
+        "google_credentials_set": bool(settings.google_credentials_json),
         "webhook_url": settings.webhook_url,
         "google_drive_folder_id": settings.google_drive_folder_id or "",
         "use_ollama": settings.use_ollama,
@@ -53,30 +49,15 @@ async def get_current_settings():
 async def update_settings(update: SettingsUpdate):
     """Update application settings at runtime.
 
-    Accepts Google OAuth credentials JSON, OpenAI API key,
-    webhook endpoint URL, and other config options.
+    Manual OpenAI/Gemini API key entry is disabled. Gems via environment variable.
     """
     data = {}
-
-    if update.openai_api_key is not None:
-        data["openai_api_key"] = update.openai_api_key
 
     if update.webhook_url is not None:
         data["webhook_url"] = update.webhook_url
 
     if update.cohere_api_key is not None:
         data["cohere_api_key"] = update.cohere_api_key
-        
-    if update.google_credentials_json is not None:
-        # Validate that it's valid JSON
-        try:
-            json.loads(update.google_credentials_json)
-        except json.JSONDecodeError:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid Google credentials JSON format",
-            )
-        data["google_credentials_json"] = update.google_credentials_json
 
     if update.google_drive_folder_id is not None:
         data["google_drive_folder_id"] = update.google_drive_folder_id
@@ -90,9 +71,7 @@ async def update_settings(update: SettingsUpdate):
     if update.ollama_model is not None:
         data["ollama_model"] = update.ollama_model
 
-    if update.gemini_api_key is not None:
-        data["gemini_api_key"] = update.gemini_api_key
-
+    # Gemini API key is read-only from environment (GEMINI_API_KEY)
     if update.gemini_model is not None:
         data["gemini_model"] = update.gemini_model
 
@@ -105,33 +84,8 @@ async def update_settings(update: SettingsUpdate):
     return {"status": "success", "updated_keys": list(data.keys())}
 
 
-@router.post("/settings/upload-credentials")
-async def upload_google_credentials(file: UploadFile = File(...)):
-    """Upload a Google OAuth/Service Account credentials JSON file."""
-    if not file.filename.endswith(".json"):
-        raise HTTPException(status_code=400, detail="File must be a .json file")
-
-    content = await file.read()
-    try:
-        creds = json.loads(content)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON file")
-
-    # Basic validation
-    if "type" not in creds:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid credentials file: missing 'type' field",
-        )
-
-    save_runtime_config({"google_credentials_json": content.decode("utf-8")})
-    logger.info("Google credentials uploaded successfully")
-
-    return {
-        "status": "success",
-        "credential_type": creds.get("type"),
-        "project_id": creds.get("project_id", ""),
-    }
+# Deprecated: Google service-account JSON upload is removed in OAuth mode.
+# Existing integration should use /integrations/google/connect and /integrations/google/callback.
 
 
 @router.post("/settings/setup-webhook")
@@ -169,20 +123,12 @@ async def setup_drive_webhook():
 
 
 @router.post("/settings/trigger-sync")
-async def trigger_full_sync():
-    """Trigger a full sync of all files in the configured Drive folder."""
-    settings = get_settings()
-
-    if not settings.google_credentials_json:
-        raise HTTPException(
-            status_code=400,
-            detail="Google credentials not configured.",
-        )
-
+async def trigger_full_sync(current_user=Depends(get_current_user)):
+    """Trigger a selective sync for the current tenant's monitored folders."""
     try:
-        from workers.tasks import sync_all_files_task
+        from workers.tasks import sync_tenant_files_task
 
-        result = sync_all_files_task.delay()
+        result = sync_tenant_files_task.delay(current_user.tenant_id)
         return {"status": "sync_started", "task_id": str(result.id)}
     except Exception as e:
         logger.error(f"Failed to trigger sync: {e}", exc_info=True)

@@ -7,11 +7,13 @@ import {
     Settings,
     RefreshCw,
     Cloud,
+    ShieldCheck,
     CheckCircle2,
     AlertCircle,
     Zap,
     MessageSquare,
-    Library
+    Library,
+    Home as Dashboard
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
@@ -58,7 +60,7 @@ export default function Sidebar({ onOpenSettings }) {
                     <div>
                         <h1 className="text-base font-semibold text-surface-100">DocIntel</h1>
                         <p className="text-[10px] text-surface-500 uppercase tracking-widest">
-                            Document AI
+                            Document AI <span className="text-accent-500 font-bold ml-1">v1.2</span>
                         </p>
                     </div>
                 </div>
@@ -66,6 +68,18 @@ export default function Sidebar({ onOpenSettings }) {
 
             {/* Main Navigation */}
             <div className="px-3 py-4 space-y-1 border-b border-surface-800/50">
+                <NavLink
+                    to="/"
+                    className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${isActive
+                            ? 'bg-accent-500/10 text-accent-400'
+                            : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/60'
+                        }`
+                    }
+                >
+                    <Dashboard size={16} />
+                    <span className="text-sm">Dashboard</span>
+                </NavLink>
                 <NavLink
                     to="/chat"
                     className={({ isActive }) =>
@@ -88,7 +102,43 @@ export default function Sidebar({ onOpenSettings }) {
                     }
                 >
                     <Library size={16} />
-                    <span className="text-sm">Document Hub</span>
+                    <span className="text-sm">Documents</span>
+                </NavLink>
+                <NavLink
+                    to="/integrations"
+                    className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${isActive
+                            ? 'bg-accent-500/10 text-accent-400'
+                            : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/60'
+                        }`
+                    }
+                >
+                    <Cloud size={16} />
+                    <span className="text-sm">Integrations</span>
+                </NavLink>
+                <NavLink
+                    to="/settings"
+                    className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${isActive
+                            ? 'bg-accent-500/10 text-accent-400'
+                            : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/60'
+                        }`
+                    }
+                >
+                    <Settings size={16} />
+                    <span className="text-sm">Settings</span>
+                </NavLink>
+                <NavLink
+                    to="/users"
+                    className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all ${isActive
+                            ? 'bg-accent-500/10 text-accent-400'
+                            : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/60'
+                        }`
+                    }
+                >
+                    <ShieldCheck size={16} />
+                    <span className="text-sm">Users</span>
                 </NavLink>
             </div>
 

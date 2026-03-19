@@ -134,12 +134,13 @@ All credentials can be configured through the **in-app Settings page** — no ma
 ### In-App Setup (recommended)
 
 1. Click **Settings** in the sidebar
-2. **Upload** your Google service account JSON file
-3. **Enter** your OpenAI API key or Gemini API key
-4. **Set** the webhook endpoint URL ([see ngrok setup ↓](#webhook-setup-for-local-development))
-5. **Set** the Drive folder ID to monitor
-6. Click **Setup Watch Channel** to activate real-time sync
-7. Click **Full Sync Now** to index existing documents
+2. **Connect** Google Drive via OAuth (new flow) instead of service account JSON
+3. **On connect callback**, your browser is redirected to `/googledrive-callback` in frontend
+4. **Enter** your OpenAI or Gemini or Cohere key
+5. **Set** the webhook endpoint URL ([see ngrok setup ↓](#webhook-setup-for-local-development))
+6. **Set** the Drive folder ID to monitor
+7. Click **Setup Watch Channel** to activate real-time sync
+8. Click **Full Sync Now** to index existing documents
 
 ### Environment Variables (.env)
 
@@ -148,7 +149,9 @@ All credentials can be configured through the **in-app Settings page** — no ma
 | `OPENAI_API_KEY` | Optional* | API key for OpenAI models |
 | `GEMINI_API_KEY` | Optional* | API key for Google Gemini models |
 | `COHERE_API_KEY` | Optional | API key for high-accuracy re-ranking |
-| `GOOGLE_CREDENTIALS_JSON` | Yes | Service account JSON content |
+| `GOOGLE_CLIENT_ID` | Yes (OAuth) | Google OAuth client ID (for integrations) |
+| `GOOGLE_CLIENT_SECRET` | Yes (OAuth) | Google OAuth client secret |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Yes | OAuth callback URL (e.g. https://app.example.com/integrations/google/callback) |
 | `GOOGLE_DRIVE_FOLDER_ID` | Yes | Target folder ID to watch |
 | `WEBHOOK_URL` | Yes | Public HTTPS URL for webhooks |
 | `USE_OLLAMA` | No | Set to `true` for local-only LLM |

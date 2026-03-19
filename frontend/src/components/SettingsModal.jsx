@@ -5,7 +5,10 @@ import {
     uploadCredentials,
     setupWebhook,
     triggerSync,
+    connectGoogleDrive,
+    getGoogleIntegration,
 } from '../services/api';
+import FolderPicker from './FolderPicker';
 import {
     X,
     Key,
@@ -26,11 +29,11 @@ export default function SettingsModal({ isOpen, onClose }) {
     const [message, setMessage] = useState(null);
 
     // Form state
-    const [openaiKey, setOpenaiKey] = useState('');
-    const [geminiKey, setGeminiKey] = useState('');
     const [cohereKey, setCohereKey] = useState('');
     const [webhookUrl, setWebhookUrl] = useState('');
     const [folderId, setFolderId] = useState('');
+    const [integrationStatus, setIntegrationStatus] = useState(null);
+    const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
 
     const fileInputRef = useRef(null);
 
@@ -44,9 +47,12 @@ export default function SettingsModal({ isOpen, onClose }) {
         try {
             setLoading(true);
             const data = await fetchSettings();
+            const integration = await getGoogleIntegration();
+
             setSettings(data);
             setWebhookUrl(data.webhook_url || '');
             setFolderId(data.google_drive_folder_id || '');
+            setIntegrationStatus(integration);
         } catch (err) {
             showMessage('error', 'Failed to load settings');
         } finally {
@@ -57,36 +63,6 @@ export default function SettingsModal({ isOpen, onClose }) {
     const showMessage = (type, text) => {
         setMessage({ type, text });
         setTimeout(() => setMessage(null), 5000);
-    };
-
-    const handleSaveApiKey = async () => {
-        if (!openaiKey.trim()) return;
-        try {
-            setSaving(true);
-            await updateSettings({ openai_api_key: openaiKey });
-            setOpenaiKey('');
-            showMessage('success', 'OpenAI API key saved successfully');
-            loadSettings();
-        } catch (err) {
-            showMessage('error', err.message);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleSaveGeminiKey = async () => {
-        if (!geminiKey.trim()) return;
-        try {
-            setSaving(true);
-            await updateSettings({ gemini_api_key: geminiKey });
-            setGeminiKey('');
-            showMessage('success', 'Gemini API key saved successfully');
-            loadSettings();
-        } catch (err) {
-            showMessage('error', err.message);
-        } finally {
-            setSaving(false);
-        }
     };
 
     const handleSaveCohereKey = async () => {
@@ -175,6 +151,21 @@ export default function SettingsModal({ isOpen, onClose }) {
         }
     };
 
+    const handleConnectGoogleDrive = async () => {
+        try {
+            setSaving(true);
+            const data = await connectGoogleDrive();
+            if (data.url) {
+                // Use same tab redirect for production OAuth reliability
+                window.location.href = data.url;
+            }
+        } catch (err) {
+            showMessage('error', err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -187,9 +178,16 @@ export default function SettingsModal({ isOpen, onClose }) {
 
             {/* Modal */}
             <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto mx-4 rounded-2xl bg-surface-850 border border-surface-700/50 shadow-2xl animate-slide-up">
+                {/* DEBUG BANNER */}
+                <div className="bg-orange-500 text-white text-[10px] font-bold py-1 px-4 text-center uppercase tracking-widest">
+                    Debug Mode: {integrationStatus ? "GOOG_CONNECTED" : "GOOG_DISCONNECTED"} | v1.2
+                </div>
                 {/* Header */}
                 <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-surface-850/95 backdrop-blur-sm border-b border-surface-800/50 rounded-t-2xl">
-                    <h2 className="text-lg font-semibold text-surface-100">Settings</h2>
+                    <h2 className="text-lg font-semibold text-surface-100 flex items-center gap-2">
+                        Settings
+                        <span className="text-[10px] bg-surface-800 px-1.5 py-0.5 rounded text-surface-500 font-mono">v1.1</span>
+                    </h2>
                     <button
                         onClick={onClose}
                         className="w-8 h-8 rounded-lg hover:bg-surface-800 flex items-center justify-center text-surface-400 hover:text-surface-200 transition-colors"
@@ -249,61 +247,50 @@ export default function SettingsModal({ isOpen, onClose }) {
                             </div>
                         </SettingsSection>
 
-                        {/* OpenAI API Key */}
+                        {/* Google Drive OAuth */}
                         <SettingsSection
-                            icon={<Key size={16} />}
-                            title="OpenAI API Key"
-                            description="Required for GPT-4.1-mini responses"
-                        >
-                            <div className="flex gap-2">
-                                <input
-                                    type="password"
-                                    value={openaiKey}
-                                    onChange={(e) => setOpenaiKey(e.target.value)}
-                                    placeholder={
-                                        settings?.has_openai_key
-                                            ? 'Current Key is Set'
-                                            : 'sk-...'
+                            icon={<Webhook size={16} />}
+                            title="Google Drive (OAuth)"
+                            description="Connect your account using Google OAuth (recommended for SaaS)">
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-surface-400">
+                                        {integrationStatus
+                                            ? `Connected (${integrationStatus.scope || 'scope set'})`
+                                            : 'Not connected'}
+                                    </span>
+                                    <button
+                                        onClick={handleConnectGoogleDrive}
+                                        disabled={saving}
+                                        className="px-3 py-1.5 rounded-lg bg-accent-500 hover:bg-accent-600 text-xs text-white"
+                                    >
+                                        Connect
+                                    </button>
+                                </div>
+                                {integrationStatus ? (
+                                    <button
+                                        onClick={() => setIsFolderPickerOpen(true)}
+                                        className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent-500/10 hover:bg-accent-500/20 border border-accent-500/20 text-sm text-accent-400 hover:text-accent-300 transition-all font-semibold"
+                                    >
+                                        <FolderOpen size={16} />
+                                        Select Sync Folders
+                                        {integrationStatus.monitored_folders?.length > 0 && (
+                                            <span className="ml-1 px-1.5 py-0.5 rounded-md bg-accent-500/20 text-accent-400 text-[10px] font-bold">
+                                                {integrationStatus.monitored_folders.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                ) : (
+                                    <p className="text-[10px] text-surface-600 mt-1 italic">
+                                        Note: Folder selection becomes available after connecting Drive.
+                                    </p>
+                                )}
+                                <small className="text-xs text-surface-500">
+                                    {integrationStatus
+                                        ? "Choose exactly which folders you want to use for AI intelligence."
+                                        : "After authorization completes, return to this settings modal and re-open to refresh status."
                                     }
-                                    className="flex-1 bg-surface-800 border border-surface-700/50 rounded-lg px-3 py-2 text-sm text-surface-200 placeholder-surface-500 input-focus outline-none"
-                                    id="openai-key-input"
-                                />
-                                <button
-                                    onClick={handleSaveApiKey}
-                                    disabled={saving || !openaiKey.trim()}
-                                    className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-surface-700 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors"
-                                >
-                                    Save
-                                </button>
-                            </div>
-                        </SettingsSection>
-
-                        {/* Gemini API Key */}
-                        <SettingsSection
-                            icon={<Key size={16} />}
-                            title="Google Gemini API Key"
-                            description="Alternative to OpenAI (uses gemini-2.5-flash)"
-                        >
-                            <div className="flex gap-2">
-                                <input
-                                    type="password"
-                                    value={geminiKey}
-                                    onChange={(e) => setGeminiKey(e.target.value)}
-                                    placeholder={
-                                        settings?.has_gemini_key
-                                            ? 'Current Key is Set'
-                                            : 'AIzaSy...'
-                                    }
-                                    className="flex-1 bg-surface-800 border border-surface-700/50 rounded-lg px-3 py-2 text-sm text-surface-200 placeholder-surface-500 input-focus outline-none"
-                                    id="gemini-key-input"
-                                />
-                                <button
-                                    onClick={handleSaveGeminiKey}
-                                    disabled={saving || !geminiKey.trim()}
-                                    className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-surface-700 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors"
-                                >
-                                    Save
-                                </button>
+                                </small>
                             </div>
                         </SettingsSection>
 
@@ -361,30 +348,6 @@ export default function SettingsModal({ isOpen, onClose }) {
                             </div>
                         </SettingsSection>
 
-                        {/* Drive Folder ID */}
-                        <SettingsSection
-                            icon={<FolderOpen size={16} />}
-                            title="Google Drive Folder ID"
-                            description="The ID of the Drive folder to monitor (from the folder URL)"
-                        >
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={folderId}
-                                    onChange={(e) => setFolderId(e.target.value)}
-                                    placeholder="1a2b3c4d5e6f..."
-                                    className="flex-1 bg-surface-800 border border-surface-700/50 rounded-lg px-3 py-2 text-sm text-surface-200 placeholder-surface-500 input-focus outline-none"
-                                    id="folder-id-input"
-                                />
-                                <button
-                                    onClick={handleSaveFolderId}
-                                    disabled={saving || !folderId.trim()}
-                                    className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-surface-700 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors"
-                                >
-                                    Save
-                                </button>
-                            </div>
-                        </SettingsSection>
 
                         {/* Actions */}
                         <div className="border-t border-surface-800/50 pt-5">
@@ -413,6 +376,25 @@ export default function SettingsModal({ isOpen, onClose }) {
                     </div>
                 )}
             </div>
+
+            {/* Folder Picker Modal Overlay */}
+            {isFolderPickerOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                        onClick={() => setIsFolderPickerOpen(false)}
+                    />
+                    <div className="relative w-full max-w-2xl">
+                        <FolderPicker
+                            onClose={() => setIsFolderPickerOpen(false)}
+                            onSave={() => {
+                                loadSettings();
+                                handleTriggerSync(); // Automatically sync after changing folders
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

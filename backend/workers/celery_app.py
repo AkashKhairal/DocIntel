@@ -21,6 +21,6 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
-    task_soft_time_limit=600,   # 10 minutes
-    task_time_limit=900,        # 15 minutes hard limit
+    task_soft_time_limit=1200,  # 20 minutes
+    task_time_limit=1800,       # 30 minutes hard limit
 )

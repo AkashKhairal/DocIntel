@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchDocuments, triggerSync } from '../services/api';
+import { fetchDocuments, triggerSync, deleteDocument } from '../services/api';
 import {
     FileText,
     RefreshCw,
@@ -170,6 +170,18 @@ export default function DocumentHub() {
                                                     <Eye size={16} />
                                                 </a>
                                                 <button
+                                                    onClick={async () => {
+                                                        if (!window.confirm(`Delete index for ${doc.file_name}?`)) {
+                                                            return;
+                                                        }
+                                                        try {
+                                                            await deleteDocument(doc.drive_file_id);
+                                                            await loadData();
+                                                        } catch (err) {
+                                                            console.error('Delete failed', err);
+                                                            alert('Failed to delete document index: ' + err.message);
+                                                        }
+                                                    }}
                                                     className="p-2 rounded hover:bg-red-500/20 text-surface-400 hover:text-red-400 transition-colors"
                                                     title="Delete Index"
                                                 >

@@ -53,19 +53,19 @@ async def _apply_reranking(query: str, results: list[dict], settings) -> list[di
     """Re-rank retrieved Qdrant chunks using Cohere's cross-encoder model."""
     if not settings.cohere_api_key or not results:
         return results[:settings.rerank_top_k]
-    
+
     import httpx
-    
+
     url = "https://api.cohere.ai/v1/rerank"
     headers = {
         "Authorization": f"Bearer {settings.cohere_api_key}",
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
-    
+
     # Extract just the raw text strings for the Cohere API
     documents = [r["text"] for r in results]
-    
+
     payload = {
         "model": "rerank-english-v3.0",
         "query": query,
@@ -73,27 +73,30 @@ async def _apply_reranking(query: str, results: list[dict], settings) -> list[di
         "top_n": settings.rerank_top_k,
         "return_documents": False
     }
-    
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code == 200:
                 body = response.json()
-                ranked_indices = [item["index"] for item in body.get("results", [])]
-                
+                ranked_indices = [item["index"]
+                                  for item in body.get("results", [])]
+
                 # Reconstruct the results array in the new sorted order
                 reranked_results = [results[i] for i in ranked_indices]
-                logger.info(f"Successfully re-ranked {len(results)} chunks to {len(reranked_results)}")
+                logger.info(
+                    f"Successfully re-ranked {len(results)} chunks to {len(reranked_results)}")
                 return reranked_results
             else:
-                logger.error(f"Cohere API Error {response.status_code}: {response.text}")
+                logger.error(
+                    f"Cohere API Error {response.status_code}: {response.text}")
                 return results[:settings.rerank_top_k]
     except Exception as e:
         logger.error(f"Failed to communicate with Cohere API: {e}")
         return results[:settings.rerank_top_k]
 
 
-async def chat_stream(question: str) -> AsyncGenerator[str, None]:
+async def chat_stream(question: str, tenant_id: int = None) -> AsyncGenerator[str, None]:
     """Stream a response for the given question using RAG.
 
     Yields:
@@ -103,11 +106,11 @@ async def chat_stream(question: str) -> AsyncGenerator[str, None]:
     settings = get_settings()
 
     # Step 1: Retrieve relevant chunks (Hybrid Search returns top_k=20)
-    results = search_vectors(question)
-    
+    results = search_vectors(question, tenant_id=tenant_id)
+
     # Step 2: Cross-Encoder Re-ranking
     reranked_results = await _apply_reranking(question, results, settings)
-    
+
     # Step 3: Build Context from the surviving top 5 chunks
     context, sources = _build_context(reranked_results)
 
@@ -131,13 +134,18 @@ async def chat_stream(question: str) -> AsyncGenerator[str, None]:
         async for chunk in _stream_ollama(messages, settings):
             yield chunk
     elif settings.gemini_api_key:
+        logger.info("Using Gemini for chat responses")
         async for chunk in _stream_gemini(messages, settings):
             yield chunk
     elif settings.openai_api_key:
+        logger.info("Using OpenAI for chat responses")
         async for chunk in _stream_openai(messages, settings):
             yield chunk
     else:
-        yield json.dumps({"type": "text", "content": "Error: No LLM configured. Please provide an OpenAI or Gemini API key in Settings."})
+        yield json.dumps({
+            "type": "text",
+            "content": "Error: No LLM configured. Please set GEMINI_API_KEY or OPENAI_API_KEY as an environment variable."
+        })
 
     # Step 4: Send source citations
     yield json.dumps({"type": "sources", "content": sources})
@@ -213,9 +221,11 @@ async def _stream_gemini(messages: list[dict], settings) -> AsyncGenerator[str, 
         if m["role"] == "system":
             system_instruction = {"parts": [{"text": m["content"]}]}
         elif m["role"] == "user":
-            contents.append({"role": "user", "parts": [{"text": m["content"]}]})
+            contents.append(
+                {"role": "user", "parts": [{"text": m["content"]}]})
         elif m["role"] == "assistant":
-            contents.append({"role": "model", "parts": [{"text": m["content"]}]})
+            contents.append(
+                {"role": "model", "parts": [{"text": m["content"]}]})
 
     payload = {
         "contents": contents,
@@ -232,7 +242,8 @@ async def _stream_gemini(messages: list[dict], settings) -> AsyncGenerator[str, 
             async with client.stream("POST", url, json=payload) as response:
                 if response.status_code != 200:
                     error_text = await response.aread()
-                    logger.error(f"Gemini API error: {response.status_code} - {error_text}")
+                    logger.error(
+                        f"Gemini API error: {response.status_code} - {error_text}")
                     yield json.dumps({"type": "text", "content": "Error: Failed to fetch response from Gemini API."})
                     return
 
@@ -240,66 +251,70 @@ async def _stream_gemini(messages: list[dict], settings) -> AsyncGenerator[str, 
                 buffer = ""
                 async for chunk in response.aiter_text():
                     buffer += chunk
-                    
+
                     # Gemini streams a large JSON array. We need to extract the individual objects.
                     # A naive but effective way is to look for complete candidates objects.
-                    
+
                     # Find all complete "candidates" blocks in the current buffer
                     while True:
                         try:
-                             # This is a bit hacky, but standard streaming parsers for this format
-                             # look for the "candidates" key and extract the text. Since it's a JSON array,
-                             # we can try to extract JSON objects if we can find matching braces.
-                             
-                             # Let's find the first '{'
-                             start_idx = buffer.find('{')
-                             if start_idx == -1:
-                                 break
-                                 
-                             # Now let's try to parse a JSON object from this start index
-                             # We'll try different end indices until json.loads succeeds
-                             parsed_obj = None
-                             end_idx = start_idx + 1
-                             
-                             # Simple brace matching to find the likely end of the object
-                             brace_count = 0
-                             for i, char in enumerate(buffer[start_idx:]):
-                                 if char == '{':
-                                     brace_count += 1
-                                 elif char == '}':
-                                     brace_count -= 1
-                                     
-                                 if brace_count == 0:
-                                     # Found a complete object
-                                     end_idx = start_idx + i + 1
-                                     try:
-                                         parsed_obj = json.loads(buffer[start_idx:end_idx])
-                                         
-                                         # Process the object
-                                         candidates = parsed_obj.get("candidates", [])
-                                         if candidates:
-                                             parts = candidates[0].get("content", {}).get("parts", [])
-                                             if parts and "text" in parts[0]:
-                                                 # Yield it immediately
-                                                 logger.info(f"Yielding: {parts[0]['text']}")
-                                                 yield json.dumps({"type": "text", "content": parts[0]["text"]})
-                                                 
-                                         # Remove processed part from buffer
-                                         buffer = buffer[end_idx:]
-                                         break # Break inner loop, continue `while True` to check buffer again
-                                         
-                                     except json.JSONDecodeError:
-                                         # Not a valid JSON object yet, continue searching
-                                         pass
-                                         
-                             if parsed_obj is None:
-                                 # Incomplete object in buffer, wait for more chunks
-                                 break
-                             
+                            # This is a bit hacky, but standard streaming parsers for this format
+                            # look for the "candidates" key and extract the text. Since it's a JSON array,
+                            # we can try to extract JSON objects if we can find matching braces.
+
+                            # Let's find the first '{'
+                            start_idx = buffer.find('{')
+                            if start_idx == -1:
+                                break
+
+                            # Now let's try to parse a JSON object from this start index
+                            # We'll try different end indices until json.loads succeeds
+                            parsed_obj = None
+                            end_idx = start_idx + 1
+
+                            # Simple brace matching to find the likely end of the object
+                            brace_count = 0
+                            for i, char in enumerate(buffer[start_idx:]):
+                                if char == '{':
+                                    brace_count += 1
+                                elif char == '}':
+                                    brace_count -= 1
+
+                                if brace_count == 0:
+                                    # Found a complete object
+                                    end_idx = start_idx + i + 1
+                                    try:
+                                        parsed_obj = json.loads(
+                                            buffer[start_idx:end_idx])
+
+                                        # Process the object
+                                        candidates = parsed_obj.get(
+                                            "candidates", [])
+                                        if candidates:
+                                            parts = candidates[0].get(
+                                                "content", {}).get("parts", [])
+                                            if parts and "text" in parts[0]:
+                                                # Yield it immediately
+                                                logger.info(
+                                                    f"Yielding: {parts[0]['text']}")
+                                                yield json.dumps({"type": "text", "content": parts[0]["text"]})
+
+                                        # Remove processed part from buffer
+                                        buffer = buffer[end_idx:]
+                                        break  # Break inner loop, continue `while True` to check buffer again
+
+                                    except json.JSONDecodeError:
+                                        # Not a valid JSON object yet, continue searching
+                                        pass
+
+                            if parsed_obj is None:
+                                # Incomplete object in buffer, wait for more chunks
+                                break
+
                         except Exception as e:
                             logger.error(f"Error parsing Gemini chunk: {e}")
                             break
-                            
+
     except Exception as e:
         logger.error(f"Gemini streaming error: {e}", exc_info=True)
         yield json.dumps({"type": "text", "content": f"Error communicating with Gemini: {str(e)}"})
